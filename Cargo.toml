@@ -1,0 +1,20 @@
+[package]
+name = "rogue"
+version = "0.1.0"
+authors = ["Knarkzel", "Staven"]
+edition = "2018"
+
+[[bin]]
+name = "rogue"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+libc = "0.2.76"
+
+[dependencies.ogc-rs]
+git = "https://git.sr.ht/~knarkzel/ogc-rs"
