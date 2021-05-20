@@ -24,15 +24,15 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.76"
+version = "0.2.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "755456fae044e6fa1ebbbd1b3e902ae19e73097ed4ed87bb79934a867c007bc3"
+checksum = "18794a8ad5b29321f790b55d93dfba91e125cb1a9edbd4f8e3150acc771c1a5e"
 
 [[package]]
 name = "num-traits"
-version = "0.2.12"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac267bcc07f48ee5f8935ab0d24f316fb722d7a1292e2913f0cc196b29ffd611"
+checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
 dependencies = [
  "autocfg",
 ]
@@ -40,7 +40,7 @@ dependencies = [
 [[package]]
 name = "ogc-rs"
 version = "0.7.1"
-source = "git+https://git.sr.ht/~knarkzel/ogc-rs#45061e29b708fd9bd07055ff8d977b45a957b556"
+source = "git+https://git.sr.ht/~knarkzel/ogc-rs#bbbb637400bd259011d9cdcda41409f59e0331f1"
 dependencies = [
  "bitflags",
  "enum_primitive",
@@ -50,7 +50,7 @@ dependencies = [
 [[package]]
 name = "ogc-sys"
 version = "0.4.1"
-source = "git+https://git.sr.ht/~knarkzel/ogc-rs#45061e29b708fd9bd07055ff8d977b45a957b556"
+source = "git+https://git.sr.ht/~knarkzel/ogc-rs#bbbb637400bd259011d9cdcda41409f59e0331f1"
 dependencies = [
  "libc",
 ]
