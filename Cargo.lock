@@ -40,7 +40,7 @@ dependencies = [
 [[package]]
 name = "ogc-rs"
 version = "0.7.1"
-source = "git+https://git.sr.ht/~knarkzel/ogc-rs#bbbb637400bd259011d9cdcda41409f59e0331f1"
+source = "git+https://git.sr.ht/~knarkzel/ogc-rs#5fabcf9721edf1c6fef3b7b0ae2bf4fba361f1af"
 dependencies = [
  "bitflags",
  "enum_primitive",
@@ -50,7 +50,7 @@ dependencies = [
 [[package]]
 name = "ogc-sys"
 version = "0.4.1"
-source = "git+https://git.sr.ht/~knarkzel/ogc-rs#bbbb637400bd259011d9cdcda41409f59e0331f1"
+source = "git+https://git.sr.ht/~knarkzel/ogc-rs#5fabcf9721edf1c6fef3b7b0ae2bf4fba361f1af"
 dependencies = [
  "libc",
 ]
