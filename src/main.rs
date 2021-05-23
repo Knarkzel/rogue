@@ -28,18 +28,16 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
     Video::wait_vsync();
 
     // Input
-    Wpad::init();
+    Pad::init();
 
     loop {
         // Wait for the next frame.
         Video::wait_vsync();
 
-        Wpad::scan_pads();
+        Pad::scan_pads();
 
-        if Wpad::buttons_down(Remote::One) == WpadButton::A {
+        if Pad::buttons_down(Controller::One) == PadButton::A {
             println!("bruh");
         }
-
-        // println!("L: {}, R: {}", pad.trigger_l(Controller::One), pad.trigger_r(Controller::One));
     }
 }
