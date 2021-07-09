@@ -1,6 +1,5 @@
 #![no_std]
 #![feature(start)]
-#![feature(default_free_fn)]
 
 extern crate alloc;
 use core::{convert::TryInto, ffi::c_void};
@@ -15,13 +14,12 @@ use embedded_graphics::{
 
 use ogc::{
     ffi::{
-        guMtx44Identity, guOrtho, GX_Color1u32, GX_End, GX_LoadProjectionMtx, GX_PokeARGB,
-        GX_Position3f32, GX_SetAlphaCompare, GX_SetClipMode, Mtx as Mtx34, Mtx44, GX_ALWAYS,
-        GX_AOP_AND, GX_BL_INVSRCALPHA, GX_BL_SRCALPHA, GX_BM_BLEND, GX_CLIP_ENABLE, GX_CLR_RGBA,
-        GX_COLOR0A0, GX_CULL_NONE, GX_DIRECT, GX_F32, GX_GM_1_0, GX_GREATER, GX_LEQUAL,
-        GX_LO_CLEAR, GX_MAX_Z24, GX_NONE, GX_ORTHOGRAPHIC, GX_PASSCLR, GX_PF_RGB8_Z24, GX_PNMTX0,
-        GX_POS_XYZ, GX_QUADS, GX_RGBA8, GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_TEX_ST, GX_TRUE,
-        GX_VA_CLR0, GX_VA_POS, GX_VA_TEX0, GX_VTXFMT0, GX_ZC_LINEAR,
+        Mtx as Mtx34, Mtx44, GX_ALWAYS, GX_AOP_AND, GX_BL_INVSRCALPHA, GX_BL_SRCALPHA, GX_BM_BLEND,
+        GX_CLIP_ENABLE, GX_CLR_RGBA, GX_COLOR0A0, GX_CULL_NONE, GX_DIRECT, GX_F32, GX_GM_1_0,
+        GX_GREATER, GX_LEQUAL, GX_LO_CLEAR, GX_MAX_Z24, GX_NONE, GX_ORTHOGRAPHIC, GX_PASSCLR,
+        GX_PF_RGB8_Z24, GX_PNMTX0, GX_POS_XYZ, GX_QUADS, GX_RGBA8, GX_TEVSTAGE0, GX_TEXCOORD0,
+        GX_TEXMAP0, GX_TEX_ST, GX_TRUE, GX_VA_CLR0, GX_VA_POS, GX_VA_TEX0, GX_VTXFMT0,
+        GX_ZC_LINEAR,
     },
     prelude::*,
 };
@@ -34,16 +32,16 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
     Video::set_black(true);
     Video::flush();
     Video::wait_vsync();
+    Video::set_black(false);
 
     let mut wii_display = Display::new(256 * 1024);
     wii_display.setup(&mut video.render_config);
-    Video::set_black(false);
 
-    let width = video.render_config.framebuffer_width as f32;
-    let height = video.render_config.embed_framebuffer_height as f32;
+    let fb_width = video.render_config.framebuffer_width as _;
+    let emb_height = video.render_config.embed_framebuffer_height as _;
 
     loop {
-        Gx::set_viewport(0.0, 0.0, width, height, 0.0, 0.0);
+        Gx::set_viewport(0.0, 0.0, fb_width, emb_height, 0.0, 0.0);
 
         Rectangle::new(Point::new(250, 100), Size::new(150, 100))
             .into_styled(
@@ -80,21 +78,23 @@ impl Display {
         let mut ident: Mtx34 = [[0.0; 4]; 3];
         let mut perspective: Mtx44 = [[0.0; 4]; 4];
 
-        let color = (0, 0, 0, 0);
+        let color = Color::new(0, 0, 0, 0);
         Gx::set_copy_clear(color, GX_MAX_Z24);
         Gx::set_pixel_fmt(GX_PF_RGB8_Z24 as _, GX_ZC_LINEAR as _);
 
-        let (width, height) = (rc.framebuffer_width, rc.embed_framebuffer_height);
-        Gx::set_viewport(0.0, 0.0, width as _, height as _, 0.0, 0.0);
+        let fb_width = rc.framebuffer_width;
+        let emb_height = rc.embed_framebuffer_height;
+        let ext_height = rc.extern_framebuffer_height;
 
-        let (emb, ext) = (rc.embed_framebuffer_height, rc.extern_framebuffer_height);
-        let y_scale = Gx::get_y_scale_factor(emb, ext);
+        Gx::set_viewport(0.0, 0.0, fb_width as _, emb_height as _, 0.0, 0.0);
+
+        let y_scale = Gx::get_y_scale_factor(emb_height, ext_height);
         let ext_fb_height = Gx::set_disp_copy_y_scale(y_scale);
 
-        let half_aspect_ratio = (rc.vi_height == 2 * rc.extern_framebuffer_height) as u32;
+        let half_aspect_ratio = (rc.vi_height == 2 * ext_height) as u32;
 
-        Gx::set_disp_copy_src(0, 0, rc.framebuffer_width, rc.embed_framebuffer_height);
-        Gx::set_disp_copy_dst(rc.framebuffer_width, ext_fb_height as _);
+        Gx::set_disp_copy_src(0, 0, fb_width, emb_height);
+        Gx::set_disp_copy_dst(fb_width, ext_fb_height as _);
 
         Gx::set_copy_filter(
             rc.anti_aliasing,
@@ -106,7 +106,6 @@ impl Display {
         Gx::set_field_mode(rc.field_rendering, half_aspect_ratio as _);
         Gx::set_disp_copy_gamma(GX_GM_1_0 as _);
 
-        // Clear VTX
         Gx::clear_vtx_desc();
         Gx::inv_vtx_cache();
         Gx::invalidate_tex_all();
@@ -149,15 +148,15 @@ impl Display {
         Gu::ortho(
             &mut perspective,
             0.0,
-            rc.embed_framebuffer_height as f32,
+            emb_height as _,
             0.0,
-            rc.framebuffer_width as f32,
+            fb_width as _,
             0.0,
             1000.0,
         );
         Gx::load_projection_mtx(&mut perspective, GX_ORTHOGRAPHIC as _);
 
-        Gx::set_viewport(0.0, 0.0, width as f32, height as f32, 0.0, 1.0);
+        Gx::set_viewport(0.0, 0.0, fb_width as _, emb_height as _, 0.0, 1.0);
         Gx::set_blend_mode(
             GX_BM_BLEND as _,
             GX_BL_SRCALPHA as _,
@@ -171,12 +170,7 @@ impl Display {
         Gx::set_cull_mode(GX_CULL_NONE as _);
         Gx::set_clip_mode(GX_CLIP_ENABLE as _);
 
-        Gx::set_scissor(
-            0,
-            0,
-            rc.framebuffer_width.into(),
-            rc.embed_framebuffer_height.into(),
-        );
+        Gx::set_scissor(0, 0, fb_width as _, emb_height as _);
     }
 }
 
@@ -190,51 +184,29 @@ impl DrawTarget for Display {
     {
         for Pixel(coord, color) in pixels.into_iter() {
             if let Ok((x @ 0..=639, y @ 0..=527)) = coord.try_into() {
-                unsafe {
-                    GX_PokeARGB(
-                        x as u16,
-                        y as u16,
-                        ogc::ffi::GXColor {
-                            r: color.r(),
-                            g: color.g(),
-                            b: color.b(),
-                            a: 255,
-                        },
-                    )
-                };
+                let color = Color::new(color.r(), color.g(), color.b(), 255);
+                Gx::poke_argb(x as u16, y as u16, color);
             }
         }
 
         Ok(())
     }
 
-    //Implement fill_contigous using texture stuffs
-
     fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
-        Gx::begin(GX_QUADS as _, GX_VTXFMT0 as _, 4);
+        let color = color.into_storage();
+        let bottom = area.bottom_right().expect("No bottom_right");
+        let (top_x, top_y) = (area.top_left.x as f32, area.top_left.y as f32);
+        let (bottom_x, bottom_y) = (bottom.x as f32, bottom.y as f32);
 
-        unsafe {
-            GX_Position3f32(area.top_left.x as _, area.top_left.y as _, 0.0);
-            GX_Color1u32(color.into_storage());
-            GX_Position3f32(
-                area.bottom_right().unwrap().x as _,
-                area.top_left.y as _,
-                0.0,
-            );
-            GX_Color1u32(color.into_storage());
-            GX_Position3f32(
-                area.bottom_right().unwrap().x as _,
-                area.bottom_right().unwrap().y as _,
-                0.0,
-            );
-            GX_Color1u32(color.into_storage());
-            GX_Position3f32(
-                area.top_left.x as _,
-                area.bottom_right().unwrap().y as _,
-                0.0,
-            );
-            GX_Color1u32(color.into_storage());
-        }
+        Gx::begin(GX_QUADS as _, GX_VTXFMT0 as _, 4);
+        Gx::position_3f32(top_x, top_y, 0.0);
+        Gx::color_1u32(color);
+        Gx::position_3f32(bottom_x, top_y, 0.0);
+        Gx::color_1u32(color);
+        Gx::position_3f32(bottom_x, bottom_y, 0.0);
+        Gx::color_1u32(color);
+        Gx::position_3f32(top_x, bottom_y, 0.0);
+        Gx::color_1u32(color);
         Gx::end();
 
         Ok(())
