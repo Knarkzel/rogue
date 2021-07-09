@@ -16,12 +16,12 @@ use embedded_graphics::{
 use ogc::{
     ffi::{
         guMtx44Identity, guOrtho, GX_Color1u32, GX_End, GX_LoadProjectionMtx, GX_PokeARGB,
-        GX_Position3f32, GX_SetAlphaCompare, GX_SetClipMode, GX_ALWAYS, GX_AOP_AND,
-        GX_BL_INVSRCALPHA, GX_BL_SRCALPHA, GX_BM_BLEND, GX_CLIP_ENABLE, GX_CLR_RGBA, GX_COLOR0A0,
-        GX_CULL_NONE, GX_DIRECT, GX_F32, GX_GM_1_0, GX_GREATER, GX_LEQUAL, GX_LO_CLEAR,
-        GX_MAX_Z24, GX_NONE, GX_ORTHOGRAPHIC, GX_PASSCLR, GX_PF_RGB8_Z24, GX_PNMTX0, GX_POS_XYZ,
-        GX_QUADS, GX_RGBA8, GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_TEX_ST, GX_TRUE, GX_VA_CLR0,
-        GX_VA_POS, GX_VA_TEX0, GX_VTXFMT0, GX_ZC_LINEAR,
+        GX_Position3f32, GX_SetAlphaCompare, GX_SetClipMode, Mtx as Mtx34, Mtx44, GX_ALWAYS,
+        GX_AOP_AND, GX_BL_INVSRCALPHA, GX_BL_SRCALPHA, GX_BM_BLEND, GX_CLIP_ENABLE, GX_CLR_RGBA,
+        GX_COLOR0A0, GX_CULL_NONE, GX_DIRECT, GX_F32, GX_GM_1_0, GX_GREATER, GX_LEQUAL,
+        GX_LO_CLEAR, GX_MAX_Z24, GX_NONE, GX_ORTHOGRAPHIC, GX_PASSCLR, GX_PF_RGB8_Z24, GX_PNMTX0,
+        GX_POS_XYZ, GX_QUADS, GX_RGBA8, GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_TEX_ST, GX_TRUE,
+        GX_VA_CLR0, GX_VA_POS, GX_VA_TEX0, GX_VTXFMT0, GX_ZC_LINEAR,
     },
     prelude::*,
 };
@@ -78,6 +78,7 @@ impl Display {
 
     pub fn setup(&self, rc: &mut RenderConfig) {
         let mut ident: Mtx34 = [[0.0; 4]; 3];
+        let mut perspective: Mtx44 = [[0.0; 4]; 4];
 
         let color = (0, 0, 0, 0);
         Gx::set_copy_clear(color, GX_MAX_Z24);
@@ -90,7 +91,6 @@ impl Display {
         let y_scale = Gx::get_y_scale_factor(emb, ext);
         let ext_fb_height = Gx::set_disp_copy_y_scale(y_scale);
 
-        // GX_FALSE = 0, GX_TRUE = 1
         let half_aspect_ratio = (rc.vi_height == 2 * rc.extern_framebuffer_height) as u32;
 
         Gx::set_disp_copy_src(0, 0, rc.framebuffer_width, rc.embed_framebuffer_height);
@@ -98,9 +98,9 @@ impl Display {
 
         Gx::set_copy_filter(
             rc.anti_aliasing,
-            rc.sample_pattern,
+            &mut rc.sample_pattern,
             GX_TRUE as _,
-            rc.v_filter,
+            &mut rc.v_filter,
         );
 
         Gx::set_field_mode(rc.field_rendering, half_aspect_ratio as _);
@@ -142,36 +142,20 @@ impl Display {
             GX_COLOR0A0 as _,
         );
 
-        // THIS SAFE FUNCTION DOES NOT WORK!
-        // HAVE TO USE UNSAFE INSTEAD.
-        // Gu::mtx_identity(ident);
-        unsafe { guMtx44Identity(&mut ident as *mut _) };
+        Gu::mtx_identity(&mut ident);
+        Gu::mtx_trans_apply(&mut ident.clone(), &mut ident, 0.0, 0.0, -100.0);
+        Gx::load_pos_mtx_imm(&mut ident, GX_PNMTX0 as _);
 
-        // THIS FUNCTION WORKS BUT IT PROBABLY DOESN'T APPLY THE CORRECT EFFECT
-        // GRANTED THE ABOVE SAFE FUNCTION DOES NOT WORK.
-        Gu::mtx_trans_apply(ident, ident, 0.0, 0.0, -100.0);
-        // c_guMtxTransApply(&mut ident as *mut _, &mut ident as *mut _, 0.0, 0.0, -100.0);
-
-        Gx::load_pos_mtx_imm(ident, GX_PNMTX0 as _);
-        // GX_LoadPosMtxImm(&mut ident as *mut _, GX_PNMTX0 as _);
-
-        // Gu::ortho(ident, 0.0, rc.embed_framebuffer_height as f32, 0.0, rc.framebuffer_width as f32, 0.0, 1000.0);
-        unsafe {
-            guOrtho(
-                &mut ident as *mut _,
-                0.0,
-                rc.embed_framebuffer_height as f32,
-                0.0,
-                rc.framebuffer_width as f32,
-                0.0,
-                1000.0,
-            );
-        }
-
-        // Gx::load_projection_mtx(ident, GX_ORTHOGRAPHIC as _);
-        unsafe {
-            GX_LoadProjectionMtx(&mut ident as *mut _, GX_ORTHOGRAPHIC as _);
-        }
+        Gu::ortho(
+            &mut perspective,
+            0.0,
+            rc.embed_framebuffer_height as f32,
+            0.0,
+            rc.framebuffer_width as f32,
+            0.0,
+            1000.0,
+        );
+        Gx::load_projection_mtx(&mut perspective, GX_ORTHOGRAPHIC as _);
 
         Gx::set_viewport(0.0, 0.0, width as f32, height as f32, 0.0, 1.0);
         Gx::set_blend_mode(
@@ -180,20 +164,12 @@ impl Display {
             GX_BL_INVSRCALPHA as _,
             GX_LO_CLEAR as _,
         );
+
         Gx::set_alpha_update(GX_TRUE as _);
-
-        // Gx::set_alpha_compare(GX_GREATER as _, 0, GX_AOP_AND as _, GX_ALWAYS as _, 0);
-        unsafe {
-            GX_SetAlphaCompare(GX_GREATER as _, 0, GX_AOP_AND as _, GX_ALWAYS as _, 0);
-        }
-
+        Gx::set_alpha_compare(GX_GREATER as _, 0, GX_AOP_AND as _, GX_ALWAYS as _, 0);
         Gx::set_color_update(GX_TRUE as _);
         Gx::set_cull_mode(GX_CULL_NONE as _);
-
-        // Gx::set_clip_mode(GX_CLIP_ENABLE as _);
-        unsafe {
-            GX_SetClipMode(GX_CLIP_ENABLE as _);
-        }
+        Gx::set_clip_mode(GX_CLIP_ENABLE as _);
 
         Gx::set_scissor(
             0,
@@ -214,12 +190,10 @@ impl DrawTarget for Display {
     {
         for Pixel(coord, color) in pixels.into_iter() {
             if let Ok((x @ 0..=639, y @ 0..=527)) = coord.try_into() {
-                let poke_x: u32 = x;
-                let poke_y: u32 = y;
                 unsafe {
                     GX_PokeARGB(
-                        poke_x as u16,
-                        poke_y as u16,
+                        x as u16,
+                        y as u16,
                         ogc::ffi::GXColor {
                             r: color.r(),
                             g: color.g(),
@@ -260,8 +234,8 @@ impl DrawTarget for Display {
                 0.0,
             );
             GX_Color1u32(color.into_storage());
-            GX_End();
         }
+        Gx::end();
 
         Ok(())
     }
