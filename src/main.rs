@@ -3,7 +3,7 @@
 #![feature(default_free_fn)]
 
 extern crate alloc;
-use core::{alloc::Layout, convert::TryInto, ffi::c_void, intrinsics::write_bytes};
+use core::{convert::TryInto, ffi::c_void};
 
 use embedded_graphics::{
     draw_target::DrawTarget,
@@ -15,16 +15,10 @@ use embedded_graphics::{
 
 use ogc::{
     ffi::{
-        c_guMtxTransApply, guMtx44Identity, guOrtho, GX_ClearVtxDesc, GX_Color1u32, GX_CopyDisp,
-        GX_DrawDone, GX_End, GX_GetYScaleFactor, GX_InvVtxCache, GX_InvalidateTexAll,
-        GX_LoadPosMtxImm, GX_LoadProjectionMtx, GX_PokeARGB, GX_Position3f32, GX_SetAlphaCompare,
-        GX_SetAlphaUpdate, GX_SetBlendMode, GX_SetClipMode, GX_SetColorUpdate, GX_SetCopyClear,
-        GX_SetCopyFilter, GX_SetCullMode, GX_SetDispCopyDst, GX_SetDispCopyGamma,
-        GX_SetDispCopySrc, GX_SetDispCopyYScale, GX_SetFieldMode, GX_SetNumChans, GX_SetNumTexGens,
-        GX_SetPixelFmt, GX_SetScissor, GX_SetTevOp, GX_SetTevOrder, GX_SetViewport,
-        GX_SetVtxAttrFmt, GX_SetVtxDesc, GX_SetZMode, Mtx, GX_ALWAYS, GX_AOP_AND,
+        guMtx44Identity, guOrtho, GX_Color1u32, GX_End, GX_LoadProjectionMtx, GX_PokeARGB,
+        GX_Position3f32, GX_SetAlphaCompare, GX_SetClipMode, GX_ALWAYS, GX_AOP_AND,
         GX_BL_INVSRCALPHA, GX_BL_SRCALPHA, GX_BM_BLEND, GX_CLIP_ENABLE, GX_CLR_RGBA, GX_COLOR0A0,
-        GX_CULL_NONE, GX_DIRECT, GX_F32, GX_FALSE, GX_GM_1_0, GX_GREATER, GX_LEQUAL, GX_LO_CLEAR,
+        GX_CULL_NONE, GX_DIRECT, GX_F32, GX_GM_1_0, GX_GREATER, GX_LEQUAL, GX_LO_CLEAR,
         GX_MAX_Z24, GX_NONE, GX_ORTHOGRAPHIC, GX_PASSCLR, GX_PF_RGB8_Z24, GX_PNMTX0, GX_POS_XYZ,
         GX_QUADS, GX_RGBA8, GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_TEX_ST, GX_TRUE, GX_VA_CLR0,
         GX_VA_POS, GX_VA_TEX0, GX_VTXFMT0, GX_ZC_LINEAR,
@@ -112,45 +106,57 @@ impl Display {
         Gx::set_field_mode(rc.field_rendering, half_aspect_ratio as _);
         Gx::set_disp_copy_gamma(GX_GM_1_0 as _);
 
+        // Clear VTX
+        Gx::clear_vtx_desc();
+        Gx::inv_vtx_cache();
+        Gx::invalidate_tex_all();
+
+        Gx::set_vtx_desc(GX_VA_TEX0 as _, GX_NONE as _);
+        Gx::set_vtx_desc(GX_VA_POS as _, GX_DIRECT as _);
+        Gx::set_vtx_desc(GX_VA_CLR0 as _, GX_DIRECT as _);
+
+        Gx::set_vtx_attr_fmt(
+            GX_VTXFMT0 as _,
+            GX_VA_POS as _,
+            GX_POS_XYZ as _,
+            GX_F32 as _,
+            0,
+        );
+        Gx::set_vtx_attr_fmt(GX_VTXFMT0 as _, GX_VA_TEX0, GX_TEX_ST as _, GX_F32 as _, 0);
+        Gx::set_vtx_attr_fmt(
+            GX_VTXFMT0 as _,
+            GX_VA_CLR0,
+            GX_CLR_RGBA as _,
+            GX_RGBA8 as _,
+            0,
+        );
+        Gx::set_z_mode(GX_TRUE as _, GX_LEQUAL as _, GX_TRUE as _);
+
+        Gx::set_num_chans(1);
+        Gx::set_num_tex_gens(1);
+        Gx::set_tev_op(GX_TEVSTAGE0 as _, GX_PASSCLR as _);
+        Gx::set_tev_order(
+            GX_TEVSTAGE0 as _,
+            GX_TEXCOORD0 as _,
+            GX_TEXMAP0 as _,
+            GX_COLOR0A0 as _,
+        );
+
+        // THIS SAFE FUNCTION DOES NOT WORK!
+        // HAVE TO USE UNSAFE INSTEAD.
+        // Gu::mtx_identity(ident);
+        unsafe { guMtx44Identity(&mut ident as *mut _) };
+
+        // THIS FUNCTION WORKS BUT IT PROBABLY DOESN'T APPLY THE CORRECT EFFECT
+        // GRANTED THE ABOVE SAFE FUNCTION DOES NOT WORK.
+        Gu::mtx_trans_apply(ident, ident, 0.0, 0.0, -100.0);
+        // c_guMtxTransApply(&mut ident as *mut _, &mut ident as *mut _, 0.0, 0.0, -100.0);
+
+        Gx::load_pos_mtx_imm(ident, GX_PNMTX0 as _);
+        // GX_LoadPosMtxImm(&mut ident as *mut _, GX_PNMTX0 as _);
+
+        // Gu::ortho(ident, 0.0, rc.embed_framebuffer_height as f32, 0.0, rc.framebuffer_width as f32, 0.0, 1000.0);
         unsafe {
-            //Clear VTX
-            GX_ClearVtxDesc();
-            GX_InvVtxCache();
-            GX_InvalidateTexAll();
-
-            GX_SetVtxDesc(GX_VA_TEX0 as _, GX_NONE as _);
-            GX_SetVtxDesc(GX_VA_POS as _, GX_DIRECT as _);
-            GX_SetVtxDesc(GX_VA_CLR0 as _, GX_DIRECT as _);
-
-            GX_SetVtxAttrFmt(
-                GX_VTXFMT0 as _,
-                GX_VA_POS as _,
-                GX_POS_XYZ as _,
-                GX_F32 as _,
-                0,
-            );
-            GX_SetVtxAttrFmt(GX_VTXFMT0 as _, GX_VA_TEX0, GX_TEX_ST as _, GX_F32 as _, 0);
-            GX_SetVtxAttrFmt(
-                GX_VTXFMT0 as _,
-                GX_VA_CLR0,
-                GX_CLR_RGBA as _,
-                GX_RGBA8 as _,
-                0,
-            );
-            GX_SetZMode(GX_TRUE as _, GX_LEQUAL as _, GX_TRUE as _);
-
-            GX_SetNumChans(1);
-            GX_SetNumTexGens(1);
-            GX_SetTevOp(GX_TEVSTAGE0 as _, GX_PASSCLR as _);
-            GX_SetTevOrder(
-                GX_TEVSTAGE0 as _,
-                GX_TEXCOORD0 as _,
-                GX_TEXMAP0 as _,
-                GX_COLOR0A0 as _,
-            );
-            guMtx44Identity(&mut ident as *mut _);
-            c_guMtxTransApply(&mut ident as *mut _, &mut ident as *mut _, 0.0, 0.0, -100.0);
-            GX_LoadPosMtxImm(&mut ident as *mut _, GX_PNMTX0 as _);
             guOrtho(
                 &mut ident as *mut _,
                 0.0,
@@ -160,35 +166,41 @@ impl Display {
                 0.0,
                 1000.0,
             );
-            GX_LoadProjectionMtx(&mut ident as *mut _, GX_ORTHOGRAPHIC as _);
-
-            GX_SetViewport(
-                0.0,
-                0.0,
-                rc.framebuffer_width as f32,
-                rc.embed_framebuffer_height as f32,
-                0.0,
-                1.0,
-            );
-            GX_SetBlendMode(
-                GX_BM_BLEND as _,
-                GX_BL_SRCALPHA as _,
-                GX_BL_INVSRCALPHA as _,
-                GX_LO_CLEAR as _,
-            );
-            GX_SetAlphaUpdate(GX_TRUE as _);
-            GX_SetAlphaCompare(GX_GREATER as _, 0, GX_AOP_AND as _, GX_ALWAYS as _, 0);
-            GX_SetColorUpdate(GX_TRUE as _);
-            GX_SetCullMode(GX_CULL_NONE as _);
-
-            GX_SetClipMode(GX_CLIP_ENABLE as _);
-            GX_SetScissor(
-                0,
-                0,
-                rc.framebuffer_width.into(),
-                rc.embed_framebuffer_height.into(),
-            );
         }
+
+        // Gx::load_projection_mtx(ident, GX_ORTHOGRAPHIC as _);
+        unsafe {
+            GX_LoadProjectionMtx(&mut ident as *mut _, GX_ORTHOGRAPHIC as _);
+        }
+
+        Gx::set_viewport(0.0, 0.0, width as f32, height as f32, 0.0, 1.0);
+        Gx::set_blend_mode(
+            GX_BM_BLEND as _,
+            GX_BL_SRCALPHA as _,
+            GX_BL_INVSRCALPHA as _,
+            GX_LO_CLEAR as _,
+        );
+        Gx::set_alpha_update(GX_TRUE as _);
+
+        // Gx::set_alpha_compare(GX_GREATER as _, 0, GX_AOP_AND as _, GX_ALWAYS as _, 0);
+        unsafe {
+            GX_SetAlphaCompare(GX_GREATER as _, 0, GX_AOP_AND as _, GX_ALWAYS as _, 0);
+        }
+
+        Gx::set_color_update(GX_TRUE as _);
+        Gx::set_cull_mode(GX_CULL_NONE as _);
+
+        // Gx::set_clip_mode(GX_CLIP_ENABLE as _);
+        unsafe {
+            GX_SetClipMode(GX_CLIP_ENABLE as _);
+        }
+
+        Gx::set_scissor(
+            0,
+            0,
+            rc.framebuffer_width.into(),
+            rc.embed_framebuffer_height.into(),
+        );
     }
 }
 
