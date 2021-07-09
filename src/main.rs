@@ -68,68 +68,51 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
 }
 
 pub struct Display;
+
 impl Display {
     pub fn new(fifo_size: usize) -> Self {
-        let buf: *mut c_void = unsafe {
-            alloc::alloc::alloc(Layout::from_size_align(fifo_size, 32).unwrap()) as *mut c_void
-        };
-        unsafe {
-            write_bytes(buf, 0, fifo_size);
-            ogc::ffi::GX_Init(buf, fifo_size as u32);
-        }
+        let buffer = gp_fifo(fifo_size);
+        Gx::init(buffer, fifo_size as u32);
         Self
     }
 
     pub fn flush(&self, framebuffer: *mut c_void) {
-        unsafe {
-            GX_DrawDone();
-            GX_SetZMode(GX_TRUE as _, GX_LEQUAL as _, GX_TRUE as _);
-            GX_CopyDisp(framebuffer, GX_TRUE as _);
-        }
+        Gx::draw_done();
+        Gx::set_z_mode(GX_TRUE as _, GX_LEQUAL as _, GX_TRUE as _);
+        Gx::copy_disp(framebuffer, GX_TRUE as _);
     }
 
     pub fn setup(&self, rc: &mut RenderConfig) {
-        let mut ident: Mtx = [[0.0; 4]; 3];
+        let mut ident: Mtx34 = [[0.0; 4]; 3];
+
+        let color = (0, 0, 0, 0);
+        Gx::set_copy_clear(color, GX_MAX_Z24);
+        Gx::set_pixel_fmt(GX_PF_RGB8_Z24 as _, GX_ZC_LINEAR as _);
+
+        let (width, height) = (rc.framebuffer_width, rc.embed_framebuffer_height);
+        Gx::set_viewport(0.0, 0.0, width as _, height as _, 0.0, 0.0);
+
+        let (emb, ext) = (rc.embed_framebuffer_height, rc.extern_framebuffer_height);
+        let y_scale = Gx::get_y_scale_factor(emb, ext);
+        let ext_fb_height = Gx::set_disp_copy_y_scale(y_scale);
+
+        // GX_FALSE = 0, GX_TRUE = 1
+        let half_aspect_ratio = (rc.vi_height == 2 * rc.extern_framebuffer_height) as u32;
+
+        Gx::set_disp_copy_src(0, 0, rc.framebuffer_width, rc.embed_framebuffer_height);
+        Gx::set_disp_copy_dst(rc.framebuffer_width, ext_fb_height as _);
+
+        Gx::set_copy_filter(
+            rc.anti_aliasing,
+            rc.sample_pattern,
+            GX_TRUE as _,
+            rc.v_filter,
+        );
+
+        Gx::set_field_mode(rc.field_rendering, half_aspect_ratio as _);
+        Gx::set_disp_copy_gamma(GX_GM_1_0 as _);
+
         unsafe {
-            GX_SetCopyClear(
-                ogc::ffi::GXColor {
-                    r: 0,
-                    g: 0,
-                    b: 0,
-                    a: 0,
-                },
-                GX_MAX_Z24,
-            );
-            GX_SetPixelFmt(GX_PF_RGB8_Z24 as _, GX_ZC_LINEAR as _);
-            GX_SetViewport(
-                0.0,
-                0.0,
-                rc.framebuffer_width as f32,
-                rc.embed_framebuffer_height as f32,
-                0.0,
-                0.0,
-            );
-
-            let yscale =
-                GX_GetYScaleFactor(rc.embed_framebuffer_height, rc.extern_framebuffer_height);
-            let extern_framebuffer_height = GX_SetDispCopyYScale(yscale) as u16;
-
-            let mut half_aspect_ratio = GX_FALSE;
-            if rc.vi_height == 2 * rc.extern_framebuffer_height {
-                half_aspect_ratio = GX_TRUE
-            }
-
-            GX_SetDispCopySrc(0, 0, rc.framebuffer_width, rc.embed_framebuffer_height);
-            GX_SetDispCopyDst(rc.framebuffer_width, extern_framebuffer_height);
-            GX_SetCopyFilter(
-                rc.anti_aliasing,
-                &mut rc.sample_pattern as *mut _,
-                GX_TRUE as _,
-                &mut rc.v_filter as *mut _,
-            );
-            GX_SetFieldMode(rc.field_rendering, half_aspect_ratio as _);
-            GX_SetDispCopyGamma(GX_GM_1_0 as _);
-
             //Clear VTX
             GX_ClearVtxDesc();
             GX_InvVtxCache();
