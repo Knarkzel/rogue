@@ -14,7 +14,8 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
-libc = "0.2.76"
+embedded-graphics = "0.7"
 
 [dependencies.ogc-rs]
-git = "https://git.sr.ht/~knarkzel/ogc-rs"
+git = "https://github.com/knarkzel/ogc-rs"
+features = ["ffi"]
