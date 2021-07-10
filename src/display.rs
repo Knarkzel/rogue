@@ -21,8 +21,6 @@ use ogc::{
     prelude::*,
 };
 
-
-
 pub struct Display;
 
 impl Display {

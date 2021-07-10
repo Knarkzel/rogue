@@ -30,10 +30,12 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
     let fb_width = video.render_config.framebuffer_width as _;
     let emb_height = video.render_config.embed_framebuffer_height as _;
 
+    let mut i = 0;
+
     loop {
         Gx::set_viewport(0.0, 0.0, fb_width, emb_height, 0.0, 0.0);
 
-        Rectangle::new(Point::new(250, 100), Size::new(150, 100))
+        Rectangle::new(Point::new(i, i), Size::new(50, 50))
             .into_styled(
                 PrimitiveStyleBuilder::new()
                     .fill_color(Rgb888::WHITE)
@@ -42,6 +44,8 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
             .draw(&mut wii_display)
             .unwrap();
         wii_display.flush(video.framebuffer);
+
+        i = (i + 1) % 478;
 
         Video::set_next_framebuffer(video.framebuffer);
         Video::flush();
